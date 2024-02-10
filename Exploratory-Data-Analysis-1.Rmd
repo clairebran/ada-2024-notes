@@ -1,0 +1,60 @@
+---
+title: "module-09-notes"
+output: html_document
+date: "2024-01-31"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+## Load "Country Data 2016" data set in from a URL and create a data frame 
+```{r}
+f <- "https://raw.githubusercontent.com/difiore/ada-2024-datasets/main/Country-Data-2016.csv"
+d <- read_csv(f, col_names = TRUE)
+names(d)
+```
+## Attach function 
+Using the attach function makes it so you don't have to use the $ to call on a variable from a dataset 
+Tony doesn't recommend using this because if you're working with 2 datasets with variables of the same name, R can get confused 
+
+## Tidy data 
+A table is "tidy" when each variable is in its own column, and each observation is in its own row 
+
+### How many variables and how many observations?
+```{r}
+str(d)
+```
+
+## How many countries?
+```{r}
+str(d$country)
+```
+## Median area and population size for all countries in dataset 
+```{r}
+median(d$area, na.rm = TRUE)
+median(d$population, na.rm = TRUE)
+```
+## Create a new density variable in your data frame which is population/area
+```{r}
+density <- d$population/d$area
+d <- cbind(d, density)
+d
+```
+Another way to do the same thing: d$density <- d$population/d$area
+Or d <- d |> mutate(density = population/area)
+
+## What are the 10 most dense countries? 
+```{r}
+order(d$density, decreasing = TRUE)
+```
+```{r}
+d$country[c(130, 145, 97, 99, 84, 17, 135, 137, 24, 18)]
+```
+## What are the 10 least dense countries?
+```{r}
+order(d$density, decreasing = FALSE)
+```
+```{r}
+d$country[c(206, 86, 70, 175, 146, 245, 76, 152, 13, 101)]
+```
+

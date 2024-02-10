@@ -1,0 +1,84 @@
+---
+title: "Feb 7 Notes"
+output: html_document
+date: "2024-02-07"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(dplyr)
+```
+
+# Class 7: Flow Control, Looping, Functions and the Wordle Coding Challenge 
+By Monday - read thru and work examples in Module 11, work on finding paper and data set for data analysis replication assignment, submit Exercise 3, start looking at Exercise 4
+
+```{r}
+f <- "https://raw.githubusercontent.com/difiore/ada-2024-datasets/main/IMDB-movies.csv"
+d <- read_csv(f, col_names = TRUE)
+view(d)
+```
+
+## Conditionals 
+
+if_else(test, do this if true, do this if false) 
+
+case_when(
+  case1 ~ result1,
+  case2 ~ result2,
+  case3 ~ result3,
+  TRUE ~ all others
+)
+
+### Add new column to the data frame that includes all movies where one of the genres listed is "comedy," then count the total number of comedy movies 
+```{r}
+d <- d %>% 
+  mutate(comedy = if_else(str_detect(genres, "Comedy"), TRUE, FALSE)) 
+  
+s <- d %>% summarise(count = n(), num_comedy = sum(comedy, na.rm = TRUE))
+```
+
+### Add new variable for "ranking," where ranking = "low" if averageRating = 0 to 3.3, "med" if averageRating > 3.3 to 6.7, and high if averageRangking > 6.7 to 10 
+```{r}
+d <- d %>%
+  mutate(ranking = case_when(
+    averageRating <= 3.3 ~ "Low",
+    averageRating <= 6.7 ~ "Med",
+    averageRating > 6.7 ~ "High"
+  ))
+d
+```
+
+### Show average run time for movies per ranking category 
+```{r}
+s2 <- d %>% 
+  group_by(ranking) %>% 
+  summarise(count = n(), avg_time = mean(runtimeMinutes, na.rm = TRUE))
+s2
+```
+
+## Loops
+for (i in 1:...) {do this} 
+
+### Example loop: Prints numbers 1 thru 28938 
+```{r}
+for (i in 1:nrow(d)){
+  print(i)
+}
+```
+
+### Loop thru all the rows in the data set and print out the cumulative running time of the movies
+```{r}
+t <- 0
+for (i in 1:nrow(d)){
+  t <- ifelse(is.na(d[i,c("runtimeMinutes")]), t, t + d[i,c("runtimeMinutes")])
+  print(t)
+}
+```
+### Easier way to get the total:
+```{r}
+cumsum(replace_na(d$runtimeMinutes, 0))
+```

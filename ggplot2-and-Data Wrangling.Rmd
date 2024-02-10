@@ -1,0 +1,162 @@
+---
+title: "Module 10 Notes"
+output: html_document
+date: "2024-02-05"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+install.packages("tidyverse")
+```
+```{r}
+library(tidyverse)
+```
+```{r}
+f <- "https://raw.githubusercontent.com/difiore/ada-2024-datasets/main/KamilarAndCooperData.csv"
+d <- read_csv(f, col_names = TRUE)  # creates a 'tibble'
+head(d)
+```
+## Creating boxplots using base R and superimpose individual data points onto plot 
+"jitter" ensures there is room between each plot point so they're not all in a vertical line
+add superimposes the points
+```{r}
+boxplot(log(d$Body_mass_female_mean))
+stripchart(log(d$Body_mass_female_mean),
+           method = "jitter",
+           col = "blue",
+           vertical = TRUE,
+           add = TRUE)
+```
+
+```{r}
+boxplot(data = d, log(Body_mass_female_mean) ~ Family)
+stripchart(data = d, log(Body_mass_female_mean) ~ Family,
+           method = "jitter",
+           col = "green",
+           vertical = TRUE,
+           add = TRUE)
+```
+## Using ggplot2 - grammar of graphics
+
+ggplot(data = ..., mapping = aes(...)) + 
+  geom ...(...) + 
+  theme(...) + ... 
+  
+```{r}
+p <- ggplot(data = d, aes(x = "", y = log(Body_mass_female_mean))) + geom_boxplot(na.rm = TRUE) # x is a dummy variable here 
+p
+```
+```{r}
+p <- p + geom_jitter(color = "blue", width = 0.1)
+p
+```
+
+Replacing the dummy variable x with Family variable from data set 
+axis.text.x = element_text(angle = 90) rotates the x axis labels 90 degrees for readability 
+ylab changes the y axis label text
+```{r}
+p <- ggplot(data = d, aes(x = Family, y = log(Body_mass_female_mean))) + geom_boxplot(na.rm = TRUE) + geom_jitter(color = "blue", width = 0.1)
+p <- p + theme(axis.text.x = element_text(angle = 90))
+p <- p + ylab("log(Female Body Mass)")
+p
+```
+## Creating histograms in base R 
+```{r}
+hist(log(d$Body_mass_female_mean)) #freq = TRUE, y axis is a count 
+hist(log(d$Body_mass_female_mean), freq = FALSE) #freq = FALSE, y axis equals density (height of each bar equals 1 total)
+lines(
+  density(log(d$Body_mass_female_mean), na.rm = TRUE),
+  col = "blue") # adds density function on top of histogram 
+abline(v = quantile(
+       log(d$Body_mass_female_mean),
+       prob = c(0.05, 0.95),
+       na.rm = TRUE
+       ),
+col = "red") #adds red lines at 5% and 95% confidence intervals 
+```
+
+##Creating histograms with ggplot2
+```{r}
+p <- ggplot(data = d,
+            aes(log(Body_mass_female_mean))
+            )
+p <- p + geom_histogram(binwidth = 2)
+(p + geom_histogram(bins = 9)) #wrapping code in parantheses prints plot without reassigning variable p 
+p <- (p + geom_histogram(bins = 9, aes(y = ..density..)) + geom_density()) #shows aesthetics of histogram as a density curve
+p <- p + geom_vline(xintercept = quantile(
+  log(d$Body_mass_female_mean),
+  prob = c(0.025, 0.975),
+  na.rm = TRUE
+), 
+color = "red"
+)
+```
+
+## Scatterplots
+```{r}
+plot(x = log(d$Body_mass_female_mean),
+     y = log(d$Brain_Size_Female_Mean)
+     )
+```
+```{r}
+n <- ggplot(data = d, aes(x = log(Body_mass_female_mean), y = log(Brain_Size_Female_Mean)))
+n <- n + geom_point(na.rm = TRUE)
+n <- n + geom_point(aes(color = factor(Family)), na.rm = TRUE)
+n
+```
+### Modify axes
+```{r}
+n <- n + xlab("log(Female Body Mass)") + ylab("log(Female Brain Size") + theme(legend.position = "bottom", legend.title = element_blank())
+n <- n + geom_smooth(method = "lm", na.rm = TRUE) #add linear regression line with standard error ribbon to plot 
+n
+```
+## Data wrangling 
+Filtering using base R
+```{r}
+s <- d[d$Family == "Hominidae" & d$Mass_Dimorphism > 2,] #applying joint criteria to data set and filtering out lines based on that 
+s
+```
+
+Filtering using {dplyr}
+```{r}
+s <- filter(d, Family == "Hominidae" & Mass_Dimorphism >2)
+s
+```
+
+Selecting... pulling out columns of data set using {dplyr}
+```{r}
+s <- select(d, Family, Genus, Body_mass_female_mean)
+s
+```
+
+Sorting using {dplyr}
+```{r}
+s <- arrange(d, Family, Genus, desc(Body_mass_male_mean))
+s
+```
+
+Summarizing by group using {dplyr}... each line of code does the same thing 
+```{r}
+s <- summarise(
+  group_by(d, Family),
+  avgF = mean(Body_mass_female_mean, na.rm = TRUE)
+)
+
+s  <- group_by(d, Family) %>%
+  summarise(avgF = mean(Body_mass_female_mean), na.rm = TRUE)
+
+s <- d %>%
+  group_by(Family) %>%
+  summarise(avgF = mean(Body_mass_female_mean, na.rm = TRUE))
+s
+```
+
+Mutate is used to create a new variable 
+```{r}
+s <- s %>% mutate(new = paste0(Family, "-", avgF))
+s
+```
+
