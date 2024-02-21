@@ -1,0 +1,96 @@
+---
+title: "Functions & Wordle Coding Challenge"
+output: html_document
+date: "2024-02-12"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#### Function pseudo code 
+my_function <- function(<argument list>) {
+  <function code>
+  return(<value>)
+}
+
+#### A toy function
+
+Note: x should be tabular data
+
+```{r}
+my_function <- function(x, reps = 2) {
+  for (i in 1:reps) {
+    print(x)
+  }
+for (i in 1:nrow(x)) {
+  print(x[i, ])
+  }
+  return(NULL)
+}
+```
+
+Create tabular data and call function:
+
+```{r}
+x <- tibble(name = c("Tony", "Claire"), major = c("Biology", "Anthropology"))
+my_function(x)
+```
+
+#### Practicing joins
+
+```{r}
+p <- "https://raw.githubusercontent.com/difiore/ada-2024-datasets/main/papers.csv"
+p <- read_csv(p, col_names = TRUE)
+                     
+c <- "https://raw.githubusercontent.com/difiore/ada-2024-datasets/main/creators.csv"
+c <- read_csv(c, col_names = TRUE)
+```
+```{r}
+p <- p |>
+  separate_wider_delim(cols = Author,
+                       delim = ";",
+                       names = c("First Author", "A2", "A3", "A4"),
+                       too_few = "align_start", too_many = "drop")
+head(p)
+
+c <- c |>
+  distinct()
+head(c)
+```
+
+Running an inner join on the data set:
+
+```{r}
+inner1 <- inner_join(c, p, by = c("fullName" = "First Author"))
+inner2 <- inner_join(p, c, by = c("First Author" = "fullName"))
+
+left <- left_join(c, p, by = c("fullName" = "First Author"))
+right <- right_join(p, c, by = c("First Author" = "fullName"))
+
+find_pubs <- tibble(fullName = c("fullName" = "First Author"))
+first <- inner_join(find_pubs, p, by = c("fullName" = "First Author"))
+```
+
+## Wordle Challenge 
+
+```{r}
+scrabble_words <- "https://raw.githubusercontent.com/difiore/ada-2024-datasets/main/collins-scrabble-words-2019.txt"
+
+most_common_english <- "https://raw.githubusercontent.com/difiore/ada-2024-datasets/main/google-10000-english-usa-no-swears.txt"
+```
+
+
+Create custom function called load_dictionary() that takes a single argument, "filename", that can be used to read in either of the two data files.
+
+```{r}
+load_dictionary <- function(filename) {
+  f <- filename
+  return(read_tsv(f, col_names = TRUE))
+}
+
+load_dictionary(scrabble_words)
+load_dictionary(most_common_english)
+```
+
+

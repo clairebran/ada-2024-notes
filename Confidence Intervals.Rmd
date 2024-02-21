@@ -1,0 +1,103 @@
+---
+title: "Notes Feb 19"
+output: html_document
+date: "2024-02-19"
+---
+
+#### Estimating standard error in a sample: 3 ways
+
+1. If population variance/standard deviation is known (rare!)
+    - standard deviation of population/sqrt(sample size)
+    - = expected standard error in a sample
+
+2. If we can sample population repeatedly to generate a sampling distribution:
+    - standard deviation of sampling distribution
+    
+3. If we have a single sample
+    - standard deviation of sample/sqrt(sample size)
+    - = an estimate of standard error 
+    
+##### Example
+
+Draw 100 numbers from a normal distribution with mean = 2 and SD = 4
+
+```{r}
+example1 <- rnorm(n = 100, mean = 2, sd = 4)
+```
+
+What is the mean and standard deviation of the numbers we have drawn?
+
+```{r}
+mean(example1)
+sd(example1)
+```
+
+What is the standard error of the mean based on this sample? 
+
+```{r}
+4/sqrt(100) # based on population std. dev.
+sd(example1)/sqrt(100) # based on single sample
+```
+Standard error of the mean based on sampling distribution:
+
+```{r}
+reps <- 1000
+samp_dist_ex1 <- 
+  do(reps) * mean(rnorm(n = 100, mean = 2, sd = 4))
+sd(samp_dist_ex1$mean)
+```
+
+#### Confidence Intervals
+
+Another way of describing a statistic's sampling distribution - plays a central role in basic inferential statistics 
+Want to know if two observations could have been drawn from the sample underlying distribution, or are they sufficiently different?
+
+**Confidence intervals** give us a range or values into which subsequent estimates of a statistic would be expected to fall some critical proportion of the time, if the sampling exercise were to be repeated 
+
+Higher confidence = wider interval (95% CI around a statistic describes the range of values into which a new estimate of the statistic, derived from a subsequent sample. would be expected to fall 95% of the time)
+
+CI = point estimate +/- critical value * SE 
+Critical value depends on type of distribution (e.g., in a normal distribution, 95% of observations fall within 2 standard deviations of the mean)
+
+**Central Limit Theorem (CLT):** states that sampling distributions approach a normal distribution as the sample size increases; TLDR: we can assume sampling distributions are normal
+
+##### Example 2
+
+Generate vector of random numbers:
+
+```{r}
+set.seed(1) # draws same set of 10,000 numbers every time 
+vector <- rnorm(10000, mean = 25, sd = 10)
+```
+
+Pull sample of 40 observations from vector and Calculate mean and std. dev. 
+
+```{r}
+s <- sample(vector, size = 40, replace = FALSE)
+
+m <- mean(s)
+
+sd <- sd(s)
+m
+sd
+```
+
+Calculate standard error:
+
+```{r}
+SE <- sd(s)/sqrt(40) 
+SE
+```
+Calculate CI for sampling distribution:
+
+Getting upper and lower limits for interval:
+
+```{r}
+alpha <- 0.05 # gives 95% confidence interval
+lower <- m + qnorm(alpha/2) * SE
+upper <- m + qnorm(1 - alpha/2) * SE
+
+(CI <- c(upper, lower))
+```
+
+

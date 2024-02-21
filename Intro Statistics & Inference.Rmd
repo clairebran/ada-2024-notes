@@ -1,0 +1,151 @@
+---
+title: "Intro Statistics & Inference"
+output: html_document
+date: "2024-02-14"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Class 9: Starting Into Statistics and Inference 
+
+```{r echo=FALSE}
+library(mosaic)
+library(radiant)
+library(tidyverse)
+library(dplyr)
+library(readr)
+```
+
+**location/central tendency:** mean, median, mode, harmonic/geometric mean
+**spread:** mean deviation, mean squared deviation (variance), standard deviation 
+
+## Spread
+
+population variance = a parameter 
+sample variance = a statistic
+
+#### Create a function to Calculate population variance 
+
+```{r}
+pvar <- function(x) {
+  var <- sum((x-mean(x))^2)/length(x)
+  r <- list(vector = x, variance = var)
+  return(r) # good practice to explicitly name return variable 
+}
+
+a <- c(1:10)
+
+pvar(a)
+```
+
+#### Create a function to calculate sample variance
+Note: Base R function var() returns same value
+
+```{r}
+svar <- function(x) {
+  var <- sum((x-mean(x))^2)/(length(x) -1)
+  return(var)
+}
+
+svar(a)
+```
+
+Note: Sample variance will always be larger than population variance 
+
+Classical/frequentist statistical inference - some statistics associated with well-defined mathematical distributions (e.g., normal distribution)
+Some statistics are estimates of parameters of distributions
+
+#### Draw & sample from some mathematiccal distributions and see how statistics we calculate compare to parameters of the distributions
+
+```{r}
+mu <- 10 # center of Gaussian distribution
+sigma <- 2 # standard dev. of Gaussian distribution
+plotDist("norm", mean = mu, sd = sigma, xlab = "x", ylab = "Frequency")
+```
+
+#### Draw a sample out of normal distribution, look at statistics that define sample
+
+```{r}
+s <- rnorm(n = 10, mean = 10, sd = 2) # rnorm selects random random observation from simulated normal distribution
+mean(s)
+sd(s)
+
+s2 <- rnorm(n = 1000, mean = 10, sd = 2) # increasing n brings sd closer to mean 
+mean(s2)
+sd(s2)
+```
+
+**Sampling distribution:** Set of possible statistics that could have been generated if the data collection process is repeated many times, along with the probabilities of these possible values 
+A large enough sample of summary statistics will create a distribution itself, approaches normal distribution shape as sample size grows 
+
+#### Create sampling distribution for the mean of sample drawn from normal dstribution with mean of 10 and sd of 2
+Generate a sampling distribution for the mean of sample:
+```{r}
+reps <- 500
+samp_dist_mean <- 
+  do(reps) * mean(rnorm(n = 10, mean = 10, sd = 2))
+str(samp_dist_mean)
+```
+
+Generate a sampling distribution for the median of sample:
+
+```{r}
+samp_dist_median <- 
+  do(reps) * median(rnorm(n = 10, mean = 10, sd = 2))
+```
+
+#### Plots of Sampling Distributions
+
+```{r}
+histogram(~ mean, data = samp_dist_mean, xlab = "Samp Dist for the Mean")
+
+histogram(~median, data = samp_dist_median, xlab = "Samp Dist for the Median")
+```
+
+The mean of a sampling distribution for a particular statistic should be a really good **point estimate** of the population value for that statistic (i.e., for mu)
+
+```{r}
+mean(samp_dist_mean$mean)
+```
+
+#### Standard Error
+
+**Standard error** is one measure of how far off a statistic that we calculate based on a sampling distribution is likely to be from the true population value of the parameter of interest
+
+SE = square root of the variance of the sampling distribution = standard deviation of a sampling distribution
+
+Note: more repetitions, narrower SD will become 
+
+```{r}
+se_mean <- sd(samp_dist_mean$mean)
+se_median <- sd(samp_dist_median$median)
+se_mean
+se_median
+```
+
+What happens to spread of sampling distribution and thus to the SE as size of samples increases?
+
+A: Mean of sampling distribution becomes closer to population mean
+
+```{r}
+samp_dist_mean2 <-
+  do(reps) * mean(rnorm(n = 1000, mean = 10, sd = 2))
+
+histogram(~ mean, data = samp_dist_mean, xlab = "Samp Dist for the Mean")
+
+se_mean2 <- sd(samp_dist_mean2$mean) 
+```
+
+#### Confidence Intervals
+
+Another way of describing a statistic's sampling distribution - plays a central role in basic inferential statistics 
+Want to know if two observations could have been drawn from the sample underlying distribution, or are they sufficiently different?
+
+**Confidence intervals** give us a range or values into which subsequent estimates of a statistic would be expected to fall some critical proportion of the time, if the sampling exercise were to be repeated 
+
+Higher confidence = wider interval (95% CI around a statistic describes the range of values into which a new estimate of the statistic, derived from a subsequent sample. would be expected to fall 95% of the time)
+
+CI = point estimate +/- critical value * SE 
+Critical value depends on type of distribution (e.g., in a normal distribution, 95% of observations fall within 2 standard deviations of the mean)
