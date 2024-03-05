@@ -1,0 +1,238 @@
+---
+title: "Feb 28 Notes"
+author: "Claire Brandes"
+date: "`r Sys.Date()`"
+output: 
+  prettydoc::html_pretty:
+    theme: leonids
+    toc: yes
+---
+
+## General Class Notes
+
+**For data analysis replication project:** need to replicate at least one descriptive statistical analysis, one inferential statistical analysis, and one data visualization 
+
+## Programming our own two-sample permutation test alternative to the t-test
+
+```{r}
+library(readr)
+f <- "https://raw.githubusercontent.com/difiore/ada-2024-datasets/main/tbs-2006-2008-ranges.csv"
+d <- read_csv(f, col_names = TRUE)
+```
+
+**What should we use as a test statistic?** 
+Difference between means for the two groups
+
+**What is the null hypothesis:**
+That mean for males and females is the same (two-tailed) OR that mean for one sex is greater/less than that for the other sex (one-tailed)
+
+**Generate a permutation distribution:** Requires permutation to break the association we want to test (here, between sex and home range size)
+
+**Determine the p-value:** Associated with seeing a test statistic as high as the one we observe if the null hypothesis of no difference is correct 
+
+Separating kernel95 variable by sex:
+
+```{r}
+k95_males <- subset(d, sex.code == 2, kernel95)
+k95_females <- subset(d, sex.code == 1, kernel95)
+```
+
+Test Statistic:
+
+```{r}
+(obs <- mean(k95_males$kernel95) - mean(k95_females$kernel95))
+```
+
+Setting up a vector to hold results of permutations:
+
+```{r}
+n_perm <- 10000
+perm <- vector(length = n_perm)
+```
+
+S will hold d temporarily for each permutation, while preserving original data set d
+
+```{r}
+s <- d
+```
+
+Generating permutations:
+
+```{r}
+library(tidyverse)
+for (i in 1:n_perm) {
+  s$sex <- sample(s$sex)
+  mean_m <- s %>%
+    filter(sex == "M") %>%
+    summarise(mean = mean(kernel95)) %>%
+    pull() # pulls value out of tibble, works similarly as $ and good when working with pipes
+  mean_f <- s %>%
+    filter(sex == "F") %>%
+    summarise(mean = mean(kernel95)) %>%
+    pull()
+  perm[[i]] <- mean_m - mean_f # results in permutation-based null distribution 
+}
+```
+
+Data Visualization: 
+
+```{r}
+hist(perm)
+
+abline(v = obs, col = "blue") # visualizes tail probability of seeing test statistic value as extreme as seen in observed data 
+```
+
+Getting p-value for 2-tailed test
+
+```{r}
+(p <- (sum(perm >= abs(obs)) + sum(perm <= -abs(obs))) / n_perm)
+```
+
+Getting p-value for 1-tailed test:
+
+```{r}
+(p <- (sum(perm >= abs(obs)) / n_perm))
+```
+
+## Using the {infer} package
+
+Offers set of functions and standard workflow for using permutation methods for hypothesis testing, whether dealing with means, differences between means, proportions, or differences in proportions
+
+Workflow: specify(), hypothesize(), generate(), calculate(), visualize()
+
+First use the function specify() to indicate the variables we are interested in:
+
+```{r}
+library(infer)
+d <- d %>% specify(formula = kernel95 ~ sex) # doesn't change data frame but adds some meta data
+```
+
+Hypothesize() function:
+
+```{r}
+d <- d %>%
+  hypothesize(null = "independence") # again, just adds meta data
+head(d)
+```
+
+Generate() function:
+
+```{r}
+perm <- d %>%
+  generate(reps = n_perm, type = "permute")
+```
+
+
+Calculate() function:
+
+```{r}
+perm <- perm %>%
+  calculate(stat = "diff in means", order = c("M", "F"))
+```
+
+Visualize() function:
+
+```{r}
+str(perm)
+
+visualize(perm, bins = 20) # centered at 0, fairly normal distribution
+```
+
+Using {infer} verbs to pull out test statistic:
+
+```{r}
+obs <- d %>% specify(kernel95 ~ sex) %>%
+  calculate(stat = "diff in means", order = c("M", "F"))
+```
+
+Shade p-value in visualization: 
+
+```{r}
+visualize(perm, bins = 20) +
+  shade_p_value(obs_stat = obs, direction = "both")
+```
+
+To get p-value associated with two-tailed permutation test:
+
+```{r}
+get_p_value(perm, obs, direction = "both")
+```
+
+To get p-value associated with one-tailed permutation test:
+
+```{r}
+get_p_value(perm, obs, direction = "right")
+```
+
+## Intro to Regression
+
+**Regression:** common form of data modeling
+
+Basic premise to modeling is to explore the relationship between:
+- an **outcome variable** (typically denoted as *y*) also called a *dependent variable* or *response variable* and...
+- one or more **explanatory/predictor variables**, also called *independent variable(s)* or *covariate(s)*
+
+**Simple (general) linear regression:** Outcome is a continuous numerical variable, single predictor that is either numerical or categorical
+
+**Multiple (general) linear regression:** Outcome is a continuous numerical variable, multiple predictors that are either numerical or categorical
+
+**ANOVA/ANCOVA:** Focuses on categorical predictors 
+
+**"Generalized" linear regression:** Allows for binary, categorical, count variables as outcomes 
+
+Before modeling, start with exploratory data analysis
+- Univariate summary statistics... e.g., 'skim()' from {skimr}
+- Bivariate summary statistics
+  - Covariance: expresses how much two numerical variables "change together" and whether that change is positive or negative
+  - Correlation coefficient is a standardized form of the covariance that summarizes, on a scale from -1 to +1, both the strength and direction of relationship 
+  
+**Covariance:** Product of the deviations of each of two variables from their respective means divided by sample size 
+
+#### Programming exercise
+
+Load data set about survivors of the zombie apocalypse:
+
+```{r}
+f <- "https://raw.githubusercontent.com/difiore/ada-2024-datasets/main/zombies.csv"
+d <- read_csv(f, col_names = TRUE)
+head(d)
+```
+
+Plotting height vs. weight:
+
+```{r}
+plot(data = d, height ~ weight)
+```
+
+Calculating covariance:
+
+```{r}
+w <- d$weight
+h <- d$height
+n <- length(w)  # or length(h)
+cov_wh <- sum((w - mean(w)) * (h - mean(h)))/(n - 1)
+cov_wh
+```
+
+Calculating correlation:
+
+```{r}
+sd_w <- sd(w)
+sd_h <- sd(h)
+cor_wh <- cov_wh/(sd_w * sd_h)
+cor_wh
+```
+
+Built in functions to calculate covariance and correlation:
+
+```{r}
+(cov(d$weight, d$height))
+(cor(d$weight, d$height)) # default is Pearson correlation coefficient 
+```
+
+**Main purposes of regression:**
+- to use one or more variables to predict the value of an outcome variable *y* based on the information contained in a set of predictor variables *x*  
+- to explicitly describe and quantify the relationship between the outcome of variable *y* and a set of explanatory variables *x*, determine the significance of any relationships, generate measures summarizing these relationships (e.g., regression coefficients), and (possibly) identify *causal* relationships between the variables  
+- to develop and choose among different models of the relationship between the variables of interest  
+- to do analyses of covariation among sets of variables to identify/explore their relative explanatory power   
+

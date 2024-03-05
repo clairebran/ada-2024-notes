@@ -1,0 +1,189 @@
+---
+title: "Regression & Ordinary Least Squares"
+author: "Claire Brandes"
+date: "`r Sys.Date()`"
+output: 
+  prettydoc::html_pretty:
+    theme: leonids
+    toc: yes
+---
+
+We typically model the outcome variable *y* as a linear function of the explanatry/predictor varables
+
+The beta values in this equation are referred to as "regression coefficients," and it is those coefficients that our analysis is trying to estimate, while minimizing, according to some criterion, the error term
+
+One common criterion is **ordinary least squares**. We want to find coeffcients that minimize "the residuals," i.e., the difference between observed and expected *y* values. 
+
+```{r}
+library(readr)
+f <- "https://raw.githubusercontent.com/difiore/ada-2024-datasets/main/zombies.csv"
+d <- read_csv(f, col_names = TRUE)
+```
+
+Fitting an OLS regression model by hand... The first thing to do is estimate the slope, which we can do if we first “center” each of our variables by subtracting the mean from each value (essentially, this shifts the distribution to eliminate the intercept term).
+
+```{r}
+library(dplyr)
+d <- mutate(d, centered_height = height - mean(height))
+d <- mutate(d, centered_weight = weight - mean(weight))
+```
+
+Visualization:
+
+```{r}
+library(ggplot2)
+(p1 <- ggplot(data = d, aes(x = weight, y = height)) + geom_point())
+(p2 <- ggplot(data = d, aes(x = centered_weight, y = centered_height)) + geom_point())
+```
+
+Create custom function that plots a scatter of points + a line that goes through scatter of points, where we can specify what slope of line is, and calculates sum of squared deviations:
+
+```{r}
+slope.test <- function(beta1, data) {
+    g <- ggplot(data = data, aes(x = centered_weight, y = centered_height))
+    g <- g + geom_point()
+    g <- g + geom_abline(intercept = 0, slope = beta1, size = 1, colour = "blue",
+        alpha = 1/2)
+    ols <- sum((data$centered_height - beta1 * data$centered_weight)^2)
+    g <- g + ggtitle(paste("Slope = ", beta1, "\nSum of Squared Deviations = ", round(ols,
+        3)))
+    g
+}
+```
+
+Pass custom function into manipulate() function to create interactive slider that manipulates beta value:
+
+```{r eval=FALSE}
+library(manipulate)
+manipulate(slope.test(beta1, data = d), beta1 = slider(-1, 1, initial = 0, step = 0.005))
+```
+
+Analytically, for a univariate regression (one predictor, one outcome variable), we can solve for beta coefficients
+
+And the line of best fit needs to go though the means of the outcome and predictor variable 
+
+Calculate B~1~ and B~0~:
+
+```{r}
+w <- d$weight
+h <- d$height
+
+(b1 <- cov(h, w)/var(w))
+(b0 <- mean(h) - (b1*mean(w)))
+```
+
+# Exercise 1
+
+Load in comparative data set from Street et al. (2017) on primate group size, brain size, and life history values:
+
+```{r}
+f <- "https://raw.githubusercontent.com/difiore/ada-2024-datasets/main/Street_et_al_2017.csv"
+d <- read_csv(f, col_names = TRUE)
+```
+
+Plot brain size (ECV) as a function of social group size, longevity, juvenile length period, and reproductive lifespan (separate plots for each):
+
+ECV as function of social group size: 
+
+```{r}
+ggplot(data = d, mapping = aes(Group_size, ECV), na.rm = TRUE) + 
+  geom_point() +
+  theme_classic() +
+  xlab("Group Size") + ylab("ECV")
+```
+
+ECV as function of longevity:
+
+```{r}
+ggplot(data = d, mapping = aes(Longevity, ECV), na.rm = TRUE) + 
+  geom_point() +
+  theme_classic() +
+  xlab("Longevity") + ylab("ECV")
+```
+
+ECV as function of juvenile length period:
+
+```{r}
+ggplot(data = d, mapping = aes(Weaning, ECV), na.rm = TRUE) + 
+  geom_point() +
+  theme_classic() +
+  xlab("Juvenile Length Period") + ylab("ECV")
+```
+
+ECV as function of reproductive lifespan:
+
+```{r}
+ggplot(data = d, mapping = aes(Repro_lifespan, ECV), na.rm = TRUE) + 
+  geom_point() +
+  theme_classic() +
+  xlab("reproductive Lifespan") + ylab("ECV")
+```
+
+Derive by hand the ordinary least squares regression coefficients $\beta~1~ and $\beta~0~ for ECV ~ social group size 
+
+```{r}
+s <- d |> filter(!is.na(Group_size),!is.na(ECV))
+(b1 <- cov(s$Group_size, s$ECV)/var(s$Group_size))
+(b0 <- mean(s$ECV) - (b1*mean(s$Group_size)))
+```
+Confirm that you get the same results using the lm() function
+
+```{r}
+m <- lm(ECV ~ Group_size, data = s)
+m
+```
+Broom converts statistical analyses into tidy tibbles:
+
+```{r}
+broom::tidy(m)
+```
+
+Repeat analysis above for different groups of primates (Catarrhini, Platyrrhini, Strepsirrhini) separately. Do your regression coefficients differ? Yes. 
+
+For **Catarrhines**:
+
+```{r}
+catr <- s %>% 
+  filter(Taxonomic_group == "Catarrhini")
+
+lm(ECV ~ Group_size, data = catr)
+```
+
+For **Strepsirhines**:
+
+```{r}
+strepr <- s %>% 
+  filter(Taxonomic_group == "Strepsirhini")
+
+lm(ECV ~ Group_size, data = strepr)
+```
+
+For **Platyrrhines**:
+
+```{r}
+platr <- s %>% 
+  filter(Taxonomic_group == "Platyrrhini")
+
+lm(ECV ~ Group_size, data = platr)
+```
+
+**How do we determine if regression coefficients are meaningfully different?**
+
+Test statistic = observed difference in coefficient values 
+Null distribution of coefficient values 
+Permute group assignment for each line of data 
+
+## Key Assumptions of Linear Regression
+1. The sample is representative of the population and is unbiased
+2. The predictor variables are measured with no error
+3. Residuals have an expected value (mean) of zero and are normally distributed
+    - QQ plots, Wilks-Shapiro o Komolgorov-Smirnoff goodness of fit test, statistics to describe kurtosis (peak-iness, shallow-ness of distribution), skew of residuals
+4. The relationship between the predictor variable and the response is not "nonlinear"
+    - plot outcome vs. predictor
+    - plot residuals vs. fitted values
+5. The variance of the residuals is constant across the range of predictor variables ("homoscedasticity")
+    - plot residuals versus predictor, residuals versus fitted values
+6. For multiple regression: predictors are not highly correlated
+    - examine correlation matrix
+    - compute variance inflation factor (VIF), which measures how much multicollinearity increases when each predictor is added to a model
+

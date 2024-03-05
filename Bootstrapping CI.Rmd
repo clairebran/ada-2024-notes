@@ -1,0 +1,195 @@
+---
+title: "Feb 21 Notes"
+output: html_document
+date: "2024-02-21"
+---
+
+```{r}
+library(readr)
+```
+
+
+# Calculating CIs by Bootstrapping
+
+Note: t-distibution is useful over normal distribution when sample size is < 30 or population standard deviation is unknown.
+
+**Bootstrapping** allows for approximation of a sampling distribution even without access to population from which samples are drawn and without making any assumptions about the theoretical shape of the sampling distribution - "bootstrapping" from the data in a single sample using a Monte Carlo simulation process 
+
+Generating vector of random numbers, pulling sample of 40 observation from vector, calculating mean & std. error
+
+```{r}
+x <- 1000
+set.seed(1)
+v <- rnorm(n = 1000, mean = 25, sd = 10)
+s <- sample(v, size = 40, replace = FALSE)
+(m <- mean(s))
+(se <- sd(s)/sqrt(length(s)))
+```
+Calculating CI from population
+
+```{r}
+percent_ci <- 95
+alpha <- 1 - percent_ci/100 
+lower <- m + qnorm(alpha/2) * se
+upper <- m + qnorm(1 - alpha/2) * se
+(ci <- c(lower, upper))
+```
+
+Bootstrapping a CI
+
+```{r}
+n_boot <- 10000
+boot <- vector(length = n_boot)
+n <- length(s)
+
+for (i in 1:n_boot) {
+  boot[[i]] <- mean(sample(s, n, replace = TRUE))
+}
+
+hist(boot, breaks = 25, ylim = c(0, 1600), xlab = "Mean", ylab = "Frequency", main = "Bootstraping Sampling Distribution")
+```
+
+
+```{r}
+lower <- quantile(boot, 0.025)
+upper <- quantile(boot, 0.975)
+(ci_boot <- c(lower, upper))
+```
+
+Note: These values are very similar to CI calculated based on population parameters. 
+
+# Classical Hypothesis Testing 
+## Null Hypothesis Significance Testing 
+
+**Classical hypothesis testing** involves formally stating a claim (null hypothesis) which is then followed up by statistical evaluation of the null versus an alternative hypothesis 
+
+**Null hypothesis:** Sample statistic shows no deviation from what is expected
+**Alternative hypothesis:** Sample statistic deviates more than expected 
+
+**To effect a hypothesis test:**
+
+1. Calculate a **test statistic** based on data
+
+2. Calculate **p-value** associated with test statistic, which is probability of obtaining, by chance, a test statistic that is as high or higher than our calculated on, assuming the null hypothesis is true 
+
+3. Classically, done by comparing the value to some appropriate standardized **sampling distribution** with well-known mathematical properties (e.g., zero-centered Gaussian or t) to yield the p-value
+
+4. Evaluate whether or not the p-value is less than or greater than the **significance level** or **$\alpha$** that we set for our test, $\alpha$ can be thought of as the cutoff level for p-values below which we feel comfortable rejecting a null hypothesis 
+
+
+#### Example: Working with Means
+#### One Sample *Z* and *T* Test
+
+```{r}
+f <- "https://raw.githubusercontent.com/difiore/ada-2024-datasets/main/vervet-weights.csv"
+d <- read_csv(f, col_names = TRUE)
+head(d)
+```
+
+Test is **one tailed z-test** because only testing if weight is *bigger* from one year to next, not testing if weight *differ*s from one year to next (i.e. could be larger or smaller)
+
+Calculating mean and std. error of sample:
+
+```{r}
+mu <- 5
+x <- d$weight  # current weights
+n <- length(x)
+(m <- mean(x))
+(se <- sd(x)/sqrt(n))
+```
+Calculating z-score
+
+```{r}
+z <- (m - mu)/se
+z
+```
+
+Ratio between how far our current estimate of mean is from our expectation, scaled to measure of uncertainty we have about our current data (std. error). 
+
+What is probability of getting z-score this high if null hypothesis is that weights are not bigger from last year to this year:
+
+```{r}
+p <- 1 - pnorm(z)
+p
+(critical_val <- qnorm(0.95))
+```
+
+Confidence interval for one-tailed test:
+
+```{r}
+alpha <- 0.05
+(ci <- m - qnorm(1 - alpha, mean = 0, sd = 1) * se)
+```
+
+Does CI include mu (mean)? No! 
+
+**Two-tailed z-test:**
+
+```{r}
+(ci <- m + c(-1, 1) * qnorm(1 - alpha/2, mean = 0, sd = 1) * se)
+```
+
+Does CI include mu (mean)? No!
+
+**t-test:** analogous to z-test, but for sample sizes n < 30
+
+```{r}
+(p <- 1 - pt(z, df = n - 1))
+(z)
+(critical_val <- qt(0.95, df = n -1))
+alpha <- 0.05
+ci <- c(m - qt(1 - alpha, df = n -1) * se, Inf)
+ci
+(t_stat <- t.test(x = x, mu = mu, alternative = "greater"))
+```
+
+**Degrees of freedom:** How many observations are allowed to vary based on statistic?
+
+#### CHALLENGE
+(From ADA 2024 website) Adult lowland woolly monkeys are reported to have an average body weight of 7.2 kilograms. You are working with an isolated population of woolly monkeys from the Colombian Andes that you think may be a different species from lowland form, and you collect a sample of 15 weights of from adult individuals at that site. From your sample, you calculate a mean of 6.43 kilograms and a standard deviation of 0.98 kilograms. Perform a hypothesis test to evaluate whether body weights in your population are different from the reported average for lowland woolly monkeys by setting up a “two-tailed” hypothesis, carrying out the analysis, and interpreting the **p value** (assume the significance level is $\alpha$ = 0.05).
+
+```{r}
+f <- "https://raw.githubusercontent.com/difiore/ada-2024-datasets/main/woolly-weights.csv"
+d <- read_csv(f, col_names = TRUE)
+head(d)
+```
+
+Calculating mean, std. dev. and SE of sample:
+
+```{r}
+mu <- 7.2
+x <- d$weight  # current weights
+n <- length(x)
+(m <- mean(x))
+(s <- sd(x))
+(se <- sd(x)/sqrt(n))
+```
+Calculating t-statistic:
+
+```{r}
+t_stat <- (m - mu)/se
+t_stat
+```
+
+Determine p-value:
+
+```{r}
+p_upper <- 1 - pt(abs(t_stat), df = n - 1)
+# or 1 - pt(t_stat, df=n-1, lower.tail = FALSE)
+p_lower <- pt(-1 * abs(t_stat), df = n - 1)
+# or pt(t_stat, df=n-1, lower.tail = TRUE)
+p <- p_upper + p_lower
+p
+```
+
+**OR:**
+
+```{r}
+t.test(d$weight, mu = mu, alternative = "two.sided")
+```
+
+#### Two Sample *Z* and *T* Test
+
+**Two sample test:** Want to compare two groups of measurements to one another = hypothesis test for the difference between two means. Null hypothesis is that the difference between these means is zero. 
+
+**Welch's t test:** Where two samples are independent and we cannot assume the variances of the two samples are equal 

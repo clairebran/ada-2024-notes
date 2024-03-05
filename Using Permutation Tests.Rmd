@@ -1,0 +1,143 @@
+---
+title: "Feb 26 Notes"
+author: "Claire Brandes"
+date: "`r Sys.Date()`"
+output: 
+  prettydoc::html_pretty:
+    theme: leonids
+    toc: yes
+---
+
+#### Descriptive analysis example
+
+```{r echo=FALSE}
+library(readr)
+f <- "https://raw.githubusercontent.com/difiore/ada-2024-datasets/main/tbs-2006-2008-ranges.csv"
+d <- read_csv(f, col_names = TRUE)
+```
+
+
+```{r}
+k95_males <- subset(d, sex.code == 2, kernel95)
+k95_females <- subset(d, sex.code == 1, kernel95)
+```
+
+
+Determine mean, SD, and SE in "kernel95" home range size for each sex. 
+
+Means:
+
+```{r}
+mean_M <- mean(k95_males$kernel95)
+mean_F <- mean(k95_females$kernel95)
+
+mean_M
+mean_F
+```
+
+Standard Deviation: 
+
+```{r}
+sd_M <- sd(k95_males$kernel95)
+sd_F <- sd(k95_females$kernel95)
+
+sd_M
+sd_F
+```
+
+Standard Error:
+
+```{r}
+SE_M <- sd_M/sqrt(9)
+SE_F <- sd_F/sqrt(11)
+
+SE_M
+SE_F
+```
+
+Boxplot comparing "kernel95" by sex:
+
+```{r}
+library(ggplot2)
+ggplot(data = d, aes(x = sex, y = kernel95)) + geom_boxplot(na.rm = TRUE) + xlab("Sex") + ylab("kernel95") + theme_classic()
+```
+
+For each sex, generate a bootstrap distribution, resampling data within each sex 10,000 times.
+
+Females:
+
+```{r}
+n_boot <- 10000
+boot_F <- vector(length = n_boot)
+n_female <- length(k95_females$kernel95)
+
+for (i in 1:n_boot) {
+  boot_F[[i]] <- mean(sample(k95_females$kernel95, n_female, replace = TRUE))
+}
+```
+
+Males:
+
+```{r}
+boot_M <- vector(length = n_boot)
+n_male <- length(k95_males$kernel95)
+
+for (i in 1:n_boot) {
+  boot_M[[i]] <- mean(sample(k95_males$kernel95, n_male, replace = TRUE))
+}
+```
+
+**Data Visualization:**
+
+Female Histogram:
+
+```{r}
+hist(boot_F, breaks = 25, ylim = c(0, 1600), xlab = "Mean", ylab = "Frequency", main = "Female Bootstrap Distribution")
+```
+
+Male Histogram:
+
+```{r}
+hist(boot_M, breaks = 25, ylim = c(0, 1600), xlab = "Mean", ylab = "Frequency", main = "Male Bootstrap Distribution")
+```
+
+**Calculating Confidence Intervals:**
+
+Males:
+
+```{r}
+lowerM <- quantile(boot_M, 0.025)
+upperM <- quantile(boot_M, 0.975)
+(ci_bootM <- c(lowerM, upperM)) # not sure if this is correct
+```
+
+Females:
+
+```{r}
+lowerF <- quantile(boot_F, 0.025)
+upperF <- quantile(boot_F, 0.975)
+(ci_bootF <- c(lowerF, upperF))
+```
+
+#### Inferential Analysis Example
+
+Is there a significant difference in mean home range size of males and females?
+
+What is H~0~? What is H~a~?
+
+Two sample t-test - What is the test statistic?
+
+```{r}
+sp <- ((9-1) * sd(k95_males$kernel95)^2 + (11 - 1) * sd(k95_females$kernel95)^2) / (9 + 11 -2)
+sp
+```
+
+```{r}
+t_stat <- (mean(k95_males$kernel95) - mean)
+((k95_females$kernel95) - 0) / sqrt(sp * 1/11 + 1) # not correct, need to fix 
+```
+
+```{r}
+t.test(k95_females, k95_males, alternative = "two.side") # this shows correct t-statistic 
+```
+
