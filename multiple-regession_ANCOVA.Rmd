@@ -1,0 +1,151 @@
+---
+title: "Multiple Regression and ANCOVA"
+author: "Claire Brandes"
+date: "`r Sys.Date()`"
+output: 
+  prettydoc::html_pretty:
+    theme: leonids
+    toc: yes
+---
+
+```{r}
+library(tidyverse)
+library(car)
+library(jtools)
+library(broom)
+```
+
+# Multiple Regression
+
+Loading in data sets:
+
+```{r}
+f <- "https://raw.githubusercontent.com/difiore/ada-2024-datasets/main/zombies.csv"
+z <- read_csv(f, col_names = TRUE)
+
+f <- "https://raw.githubusercontent.com/difiore/ada-2024-datasets/main/AVONETdataset1.csv"
+d <- read_csv(f, col_names = TRUE)
+```
+
+Winnow AVONET data set:
+
+```{r}
+d <- d %>% select("Species1","Family1","Order1","Beak.Length_Culmen","Beak.Width","Beak.Depth","Tarsus.Length","Wing.Length","Tail.Length","Mass","Habitat","Migration","Trophic.Level","Trophic.Niche","Min.Latitude","Max.Latitude","Centroid.Latitude","Primary.Lifestyle","Range.Size")
+```
+
+Linear model of height as a function of weight + age + gender:
+
+```{r}
+m <- lm(height ~ weight + age + gender, data = z)
+summary(m)
+```
+
+Tidy data:
+
+```{r}
+m |> tidy()
+```
+
+Check VIFs:
+
+```{r}
+vif(m)
+```
+
+## Challenge
+
+With AVONET dataset, winnow to order "Accipitriformes" and run a multiple regression of log (Range.Size) as a sunction of the variables log(Mass) and Primary.Lifestyle
+
+```{r}
+d <- d %>% filter(Order1 == "Accipitriformes")
+
+m1 <- lm(log(Range.Size) ~ log(Mass) + Primary.Lifestyle, data = d) 
+summary(m1)
+```
+
+Generate prediction and confidence intervals (using zombies data set as example:
+
+```{r}
+m <- lm(height ~ weight + age + gender, data = z)
+summary(m)
+```
+
+What is the estimated mean height, in inches, for a 29 year old male who weighs 132 pounds who has survived the zombie apocalypse, and what is the 95% confidence interval around this estimate of mean height?
+
+Calculating estimate by hand: 
+
+```{r}
+(132 * 0.140542) + (29 * 0.662458) + (1 * 1.609671) + 33.309791
+```
+
+Generating confidence interval: 
+
+```{r}
+(ci <- predict(m, newdata = data.frame(age = 29, gender = "Male", weight = 132), interval = "confidence", level = 0.095))
+```
+
+Generating prediction interval:
+
+```{r}
+(pi <- predict(m, newdata = data.frame(age = 29, gender = "Male", weight = 132), interval = "prediction", level = 0.095))
+```
+
+**{jtools} package:**
+
+**effect_plot()** can be used to plot the relationship between (one of) the predictor variables and the response variable while holding the others constant
+
+**plot_sums()** can be used to visualize coefficient estimates and CI values around those terms, including visualizing multiple models on the same plot
+
+```{r}
+library(broom.mixed)
+
+effect_plot(m, pred = weight, interval = TRUE, int.type = "confidence", int.width = 0.95, plot.points = TRUE)
+
+plot_summs(m)
+
+plot_summs(m, plot.distributions = TRUE, rescale.distributions = TRUE)
+```
+
+# Model Selection
+
+Installing packages and loading/winnowing data set:
+
+```{r}
+library("MASS")
+library("AICcmodavg")
+library("MuMIn")
+
+f <- "https://raw.githubusercontent.com/difiore/ada-2024-datasets/main/AVONETdataset1.csv"
+d <- read_csv(f, col_names = TRUE)
+d <- d %>% select("Species1","Family1","Order1","Beak.Length_Culmen","Beak.Width","Beak.Depth","Tarsus.Length","Wing.Length","Tail.Length","Mass","Habitat","Migration","Trophic.Level","Trophic.Niche","Min.Latitude","Max.Latitude","Centroid.Latitude","Primary.Lifestyle","Range.Size")
+```
+
+Make some new variables:
+
+```{r}
+d <- d %>% mutate(logMass = log(Mass),
+                  logRS = log(Range.Size),
+                  logBeak = log(Beak.Length_Culmen),
+                  logTarsus = log(Tarsus.Length),
+                  Migration = as.factor(Migration))
+```
+
+Model evaluation using partial F tests
+
+Let's compare...
+
+```{r}
+m1 <- lm(data = d, logBeak ~ logRS * Migration) # full model
+m2 <- lm(data = d, logBeak ~ logRS + Migration) # model without interaction term
+m3 <- lm(data = d, logBeak ~ logRS) # model with one predictor
+m4 <- lm(data = d, logBeak ~ Migration) # model with one predictor
+m5 <- lm(data = d, logBeak ~ 1) # intercept only model 
+
+anova(m2, m1, test = "F") # tells us that adding the interaction term does add more explanatory power (based on p-value of 0.004)
+```
+
+
+```{r}
+anova(m2, m3, test = "F") # before next time - explore filtering data frame to not be missing data passed to linear model object (need to drop NA)
+```
+
