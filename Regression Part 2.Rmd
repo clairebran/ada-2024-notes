@@ -1,0 +1,236 @@
+---
+title: "Regression Part 2"
+author: "Claire Brandes"
+date: "`r Sys.Date()`"
+output: 
+  prettydoc::html_pretty:
+    theme: leonids
+    toc: yes
+---
+
+work on exercise over spring break: https://difiore.github.io/ada-2024/exercise-09.html 
+
+# ANOVA Tables
+
+**SSY** - (sum of squares of *y*) total variation in *y* variable  
+**SSR** - (regression sum of squares) variation in *y* explained by our model   
+**SSE** - (error sum of squares) variation that is left over as "error"   
+
+Loading in toy data set:
+
+```{r}
+library(readr)
+f <- "https://raw.githubusercontent.com/difiore/ada-2024-datasets/main/zombies.csv"
+d <- read_csv(f, col_names = TRUE)
+```
+
+Regression model with zombie apocalypse survivor data set:
+
+```{r}
+(m <- lm(data = d, height ~ weight))
+```
+
+SSY = height - mean(height)
+
+```{r}
+(SSY <- sum((m$model$height - mean(m$model$height))^2))
+```
+
+SSR = predicted height - mean height
+
+```{r}
+(SSR <- sum((m$fitted.values - mean(m$model$height))^2))
+```
+
+SSE = height - predicted height
+
+```{r}
+(SSE <- sum((m$model$height - m$fitted.values)^2))
+```
+
+## ANOVA Tables: Mean Square
+
+**Mean Square:** variance in each of three components (SSY, SSR, SSE)  
+- dividing each sum of squares by its corresponding degrees of freedom   
+    - SSY degrees of freedom = n-1
+    - SSR degrees of freedom = n    
+    - SSE degrees of freedom = n-(p+1)
+    
+Mean overall variance: SSY/(nrow(d) - 1)
+
+```{r}
+(MSY <- SSY/(1000 - 1))
+```
+
+Mean variance explained by the regression equation: SSR / 1
+
+```{r}
+(MSR <- SSR / 1)
+```
+
+Mean remaining variance: SSY/df_error, SSY/(nrow(d)-2)
+
+```{r}
+(MSE <- SSE/998)
+```
+
+## ANOVA Tables: F Ratio
+
+F ratio: ratio of the variance explained by the regression model to the remaining, unexplained variance
+
+fratio <- MSR/MSE
+
+Can test overall significance of our regression model by evaluating F ratio test statistic against an F distribution, taking into account the number of degrees of freedom in each. 
+
+THe p-value associated with a particular value of the F statistic is simply the area under a "F distribution" cuve to the right of the F statistic value (i.e., 1 minus the cumulative probability up to that point)
+
+pf(q = fratio, df1 = 1, df2 = 998, lower.tail = FALSE)
+**OR**
+1- (pf(q = fratio, df1 = 1, df2 = 998))
+
+```{r}
+(fratio <- MSR/MSE)
+```
+
+Using R...
+
+```{r}
+a <- aov(data = d, height ~ weight)
+
+m <- lm(data = d, height ~ weight)
+
+summary(a)
+
+summary.aov(m)
+```
+
+ANOVA Table (by hand):
+
+```{r}
+(anova_table <- data.frame(
+  Source = c("Regression", "Error", "Total"),
+  Sum_of_Squares = c("SSR = 12864.82", "SSE = 5693.79", "SSY = 18558.61"),
+  Degrees_of_Freedom = c("1", "n - 2 = 988", "n - 1 = 999"),
+  Mean_Square = c("MSR = 12864.82", "MSE = 5.7972", "MSY = 18.57719"),
+  F_ratio = c("2254.139", "", "")
+))
+```
+
+# Challenge
+
+Loading in comparative data set on primates:
+
+```{r}
+f <- "https://raw.githubusercontent.com/difiore/ada-2024-datasets/main/Street_et_al_2017.csv"
+s <- read_csv(f, col_names = TRUE)
+```
+
+
+```{r}
+(m <- lm(formula = log(ECV) ~ log(Body_mass), data = s))
+```
+
+Derive by hand the ordinary least squares regression coefficients B~1~ and B~0~ for (log(ECV) ~ logBody)mass):
+
+First, mutating the data set to include log-transformed values:
+
+```{r}
+library(tidyverse)
+s <- s%>% 
+  drop_na(ECV, Body_mass) %>%
+  mutate(log_ECV = log(ECV), 
+         log_Body_mass = log(Body_mass))
+```
+
+Then, calculating beta coefficients:
+
+```{r}
+(b1 <- cov(s$log_Body_mass, s$log_ECV)/var(s$log_Body_mass))
+(b0 <- mean(s$log_ECV) - b1*mean(s$log_Body_mass))
+```
+
+```{r}
+library(broom)
+m <- lm(log_ECV ~ log_Body_mass, data = s)
+tidy(m)
+```
+
+Derive by hand the ANOVA table for the regression of log(ECV) on log(Body_mass)
+
+What are SSY, SSR, and SSE? What degrees of freedom are associated with each variable?
+
+```{r}
+(SSY <- sum((m$model$log_ECV - mean(m$model$log_ECV))^2))
+
+(SSR <- sum((m$fitted.values - mean(m$model$log_ECV))^2))
+
+(SSE <- sum((m$model$log_ECV - m$fitted.values)^2))
+```
+
+Calculating mean-square values:
+
+```{r}
+(MSY <- SSY/(182 - 1))
+
+(MSR <- SSR / 1)
+
+(MSE <- SSE / (182-2))
+```
+
+Calculating F ratio:
+
+```{r}
+(fratio <- MSR / MSE)
+```
+
+Pull out ANOVA table:
+
+```{r}
+a <- aov(data = s, log_ECV~log_Body_mass)
+summary(a)
+```
+
+R^2^ associated with model = SSR/SSY
+
+```{r}
+(R_2 <- SSR / SSY)
+```
+
+Scatter plot visualization:
+
+```{r}
+ggplot(s, aes(x = log_Body_mass, y = log_ECV)) + 
+  geom_point() +
+  geom_smooth(method = "lm")
+```
+
+# Standard Errors of Coefficients
+
+Formula for std. error of the regression slope B~1~ is calculated as: SE = sqrt(MSE/SSX)
+
+  SSX - sum squares of *x* variable (how much sprad around the mean there is in predictor variable)
+
+Using our data:
+
+```{r}
+SSX <- sum((m$model$log_Body_mass - mean(m$model$log_Body_mass))^2)  # how much x variation there is
+```
+
+Standard error in B~1~:
+
+```{r}
+(se_b1 <- sqrt(MSE/SSX))
+```
+
+What we calculated above matches what we get by running:
+
+```{r}
+tidy(m)
+```
+
+Test statistic: log_Body_mass estimate / log_Body_mass std. error
+
+```{r}
+0.784/0.014
+```
+
