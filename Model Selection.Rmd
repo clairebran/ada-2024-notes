@@ -1,0 +1,345 @@
+---
+title: "Model Selection"
+author: "Claire Brandes"
+date: "`r Sys.Date()`"
+output: 
+  prettydoc::html_pretty:
+    theme: leonids
+    toc: yes
+---
+
+# Model Selection (Monday April 1st) 
+
+## Continued from last class
+
+Loading packages
+
+```{r message=FALSE}
+library(tidyverse)
+```
+
+Loading data set
+
+```{r message=FALSE}
+f <- "https://raw.githubusercontent.com/difiore/ada-2024-datasets/main/AVONETdataset1.csv"
+d <- read_csv(f, col_names = TRUE)
+```
+
+Winnowing data set
+
+```{r}
+d <- d %>% select("Species1",
+                  "Family1",
+                  "Order1",
+                  "Beak.Length_Culmen",
+                  "Beak.Width",
+                  "Beak.Depth",
+                  "Tarsus.Length",
+                  "Wing.Length",
+                  "Tail.Length",
+                  "Mass",
+                  "Habitat",
+                  "Migration",
+                  "Trophic.Level",
+                  "Trophic.Niche",
+                  "Min.Latitude",
+                  "Max.Latitude",
+                  "Centroid.Latitude",
+                  "Primary.Lifestyle",
+                  "Range.Size")
+```
+
+Making some new variables
+
+```{r}
+d <- d %>% mutate(logMass = log(Mass),
+                  logRS = log(Range.Size),
+                  logBeak = log(Beak.Length_Culmen),
+                  logTarsus = log(Tarsus.Length),
+                  Migration = as.factor(Migration))
+```
+
+Lets compare...
+
+```{r}
+m1 <- lm(data = d, logBeak ~ logRS * Migration) # full model
+m2 <- lm(data = d, logBeak ~ logRS + Migration) # model without interaction term
+m3 <- lm(data = d, logBeak ~ logRS) # model with one predictor
+m4 <- lm(data = d, logBeak ~ Migration) # model with one predictor
+m5 <- lm(data = d, logBeak ~ 1) # intercept only model 
+```
+
+Once we have fitted a full and nested model, we can carry out partial F test to compare particular models using the anova() function, with the nested (reduced) and full models as arguments. The reduced model is included as the first argument and the full model is included as the second argument.  
+
+```{r}
+anova(m2, m1, test = "F")
+```
+
+Does a model including logRS and Migration have better explanatory power than a model including just logRS? Yes! 
+
+## Exploring "forward" and "backward" selection
+
+### Forward Selection
+
+```{r}
+d_new <- d %>% drop_na(c(logBeak, logTarsus, logRS, Primary.Lifestyle, Trophic.Level, Migration))
+
+lm(data = d_new, logBeak ~ logRS + Migration + Trophic.Level + logTarsus + Primary.Lifestyle)
+```
+
+**Forward selection** starts with an intercept-only model and then tests which of the predictor variables best improves the goodness of fit. Then, the model is updated by adding that term and tests which of the remaining predictors would further and best improve the fit. 
+
+The R functions add1() and update(), respectively, perform the series of tests and update your fitted regression model. Setting the "test=" argument to "F" includes the partial F statistic value and its significance. The ".~." part of the "scope=" argument means, basically, "what is already there", while the remainder of the "scope=" argument is the list of additional variables you might add for the fullest possible model.
+
+```{r}
+m_null <- lm(data = d_new, logBeak ~ 1) # starting with null model (logBeak as a function of the intercept)
+
+add1(m_null, scope = .~. + logRS + Migration + Trophic.Level + Primary.Lifestyle + logTarsus, test = "F")
+```
+
+All have explanatory power based on p-values. Variable with the highest F value is adding the most explanatory power to the model. In this case, it is "Primary.Lifestyle." Now adding this factor into the null model:
+
+```{r}
+m1 <- update(m_null, formula = .~. + logTarsus)
+summary(m1)
+```
+
+Now we're going to add one more variable to the model. Let's see what the variable with the next highest explanatory power is:
+
+```{r}
+add1(m1, scope = .~. + logRS + Migration + Trophic.Level + Primary.Lifestyle + logTarsus, test = "F")
+```
+
+Updating model 1 by adding in Primary.Lifestyle
+
+```{r}
+m2 <- update(m1, formula = .~. + Primary.Lifestyle)
+summary(m2)
+```
+
+Overall still a significant model, multiple R^2^ is increasing 
+
+Repeating pattern again:
+
+```{r}
+add1(m2, scope = .~. + logRS + Migration + Trophic.Level + Primary.Lifestyle + logTarsus, test = "F")
+```
+
+Updating model:
+
+```{r}
+m3 <- update(m2, formula = .~. + Trophic.Level)
+summary(m3)
+```
+
+Repeating again:
+
+```{r}
+add1(m3, scope = .~. + logRS + Migration + Trophic.Level + Primary.Lifestyle + logTarsus, test = "F")
+```
+
+Adding logRS to the model
+
+```{r}
+m4 <- update(m3, formula = .~. + logRS)
+summary(m4)
+```
+
+Repeating again:
+
+```{r}
+add1(m4, scope = .~. + logRS + Migration + Trophic.Level + Primary.Lifestyle + logTarsus, test = "F")
+```
+
+### Backward Selection
+
+**Backward selection** starts with the fullest model you want to consider and then systematically drops terms that do not contribute to the explanatory value of the model. The R functions for this process are drop1() to inspect the partial F test results and update() to update the model.
+
+```{r}
+m_full <- lm(data = d_new, logBeak ~ logRS + Migration + Trophic.Level + Primary.Lifestyle + logTarsus) # starting with full model
+```
+
+Dropping from full model with test type set to F 
+
+```{r}
+drop1(m_full, test = "F")
+```
+
+Update by removing Migration, which has the lowest F value
+
+```{r}
+m2 <- update(m_full, .~. - Migration)
+summary(m2)
+```
+
+Overall model is still significant. Now we're going to drop from m2
+
+```{r}
+drop1(m2, test = "F")
+```
+
+Dropping logRS from the model
+
+```{r}
+m3 <- update(m2, .~. - logRS)
+summary(m3)
+```
+
+Dropping from m3
+
+```{r}
+drop1(m3, test = "F")
+```
+
+Removing Trophic.Level from the model
+
+```{r}
+m4 <- update(m3, .~. - Trophic.Level)
+summary(m4)
+```
+
+Note: The example above doesn't demonstrate a step in which adding or removing a variable adds more explanatory power to the model. 
+
+# Model Selection (Wednesday April 3)
+
+## Akaike Information Criterion
+
+In the {MASS} package, there are two R functions that can act as shortcuts for the process of forward and backwards selection that use an information criterion approach - e.g., **Akaike Information Criterion (AIC)** - rather than partial F tests to determine relative model fit
+
+The AIC is typically calculated as **-2(log-likelihood) + 2K**, where K is the number of model parameters (i.e., the total number of beta coefficients we estimate, which equals the number of variables in the model, plus the intercept).
+
+The log-likelihood is a measure of model fit (the higher, the better). This the mode with the **highest (most positive)** AIC is typically designated as the best fit for the data. 
+
+```{r message=FALSE}
+library(MASS)
+```
+
+Adding relative beak & relative tarsus variables:
+
+```{r}
+relBeak <- resid(lm(log(Beak.Length_Culmen) ~ log(Mass), data = d))
+d$relBeak <- relBeak
+
+relTarsus <- resid(lm(log(Tarsus.Length) ~ log(Mass), data = d))
+d$relTarsus <- relTarsus
+```
+
+Dropping NAs from data set for variables of interest:
+
+```{r}
+d_new <- d %>% drop_na(c("relBeak", "logRS", "Migration", "Trophic.Level", "logTarsus", "Primary.Lifestyle"))
+```
+
+Can begin with either full or null model. Here's beginning with the full model:
+
+```{r}
+m_full <- lm(data = d_new, relBeak ~ logRS + relTarsus + Migration + Trophic.Level + Primary.Lifestyle)
+
+s <- stepAIC(m_full, scope = .~., direction = "both")
+```
+
+Here is starting with the null model:
+
+```{r}
+m_null <- lm(data = d_new, relBeak ~ 1)
+
+s <- stepAIC(m_null, scope = .~. + logRS + relTarsus + Migration + Trophic.Level + Primary.Lifestyle, direction = "both")
+```
+
+Adding in logRS (or taking out any other variables) increases AIC, so "best" model here is then this one. 
+
+Note: AIC approach winds up including relTarsus in the "best" model, while F tests do not!
+
+## Dredge Function
+
+An alternative approach to model selection using AIC is provided by the function **dredge()** in the {MuMIn} package, which explores subsets of a given model in an automated way. With **dredge()**, we first run a global model that includes all of the terms we want to consider and then we run the function to fit subsets of that model without having to specify explicitly which submodels we want to run. NOTE the added "na.action" argument. 
+
+```{r message=FALSE}
+library(MuMIn)
+```
+
+Example:
+
+```{r}
+m_full <- lm(data = d_new, relBeak ~ logRS + Migration + Trophic.Level + relTarsus + Primary.Lifestyle, na.action = na.fail)
+
+mods <- dredge(m_full)
+mods
+```
+
+Something about models and weighting... 
+
+```{r}
+mods.res <- get.models(mods, subset = TRUE) # returns all models
+
+mods.res <- get.models(mods, subset = delta <=4) #returns top models where delta.aicc <= 4
+
+mods.avg <- summary(model.avg(mods, subset = delta <=4, fit = TRUE)) # averages coefficients for top moels where delta.aicc <= 4
+
+mods.avg <- summary(model.avg(mods, subset = cumsum(weight) <= 0.99, fit = TRUE)) # averages coefficients for top models where cumulative weight is <= 0.99
+
+mods.avg$msTable # returns table of summary stats for models included in average
+
+plot(mods.avg, full = TRUE)
+plot(mods.avg, full = FALSE)
+
+confint(mods.avg) # CIs for averaged beta coefficient estimates
+```
+
+# Challenge
+
+Read in mammal life histories data set:
+
+```{r message=FALSE}
+f <- "https://raw.githubusercontent.com/difiore/ada-2024-datasets/main/Mammal_lifehistories_v2.txt"
+d <- read_tsv(f, col_names = TRUE)
+```
+
+Loading package for replace_with_na_all function:
+
+```{r message=FALSE}
+library(naniar)
+```
+
+Replace -999s with NA:
+
+```{r}
+d <- d %>% replace_with_na_all(condition = ~.x == -999.00)
+```
+
+Drop refs and litter size variables
+
+```{r}
+d <- d %>% mutate(
+  'refs' = NULL,
+  'litter size' = NULL
+)
+```
+
+Log transform all other variables
+
+```{r}
+d <- d %>% mutate(
+  logMass = log(`mass(g)`),
+  logGes = log(`gestation(mo)`),
+  logNew = log(`newborn(g)`),
+  logWean = log(`weaning(mo)`),
+  logWeanMass = log(`wean mass(g)`),
+  logAFR = log(`AFR(mo)`),
+  logMaxLife = log(`max. life(mo)`),
+  logLitters = log(`litters/year`)
+)
+```
+
+Regress **gestation, weaning, age at first reproduction,** and **max lifespan** on **mass** and add residuals to the data frame (hint: na.action = na.exclude)
+
+
+
+Plot residuals of **max lifespan** in relation to **Order** - which orders have the highest residual lifespan?
+
+Plot residuals of **newborn mass** in relation to **Order** - which orders have highest relative newborn mass?
+
+Plot residuals of **weaning mass** in relation to **Order** - which orders have highest relative weaning mass?
+
+Run models and a model selection process to evaluate what variables best predict **lifespan, newborn mass**, and **weaning mass**
+
