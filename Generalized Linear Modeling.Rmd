@@ -1,0 +1,306 @@
+---
+title: "Generalized Linear Modeling"
+author: "Claire Brandes"
+date: "April 8, 2024"
+output: 
+  html_document: 
+    highlight: tango
+---
+
+# General Linear Models 
+
+**General linear models** assume that our response variables are continuously distributed and have normal distributed errors/residuals with constant variance across the range of our predictor variables
+
+When we have different kinds of response variables (e.g., **binary** or **count** data), or when residuals are not homeoscedastic, we can sometimes use a different regression technique called **generalized linear modeling**  
+
+Generalized linear models extend simple linear regression to allow the expected value of our response variables to depend on our predictor variables through what is called a **link function**  
+
+**Features of generalized linear models:**  
+One of the most important differences is that in generalized linear modeling we no longer use ordinary least squares to estimate parameter values, but rather use **maximum likelihood** or **Bayesian** approaches  
+
+Three components to generalized linear models:  
+    - the **linear component**, which reflects the linear combination of predictor variables in our model  
+    - the **error structure** or **random component**, which refers to the probability distribution of the response variable and of the residuals in the response variables after the linear component has been removed  
+    - a **link function**, which connects the expected value of the response variable to the predictors  
+    
+**Predicted value of the response variable**  
+As in general linear modeling, the linear component yields a predicted value, **but this value is not the predicted value of our response variable, Y, per se.** Rather, the predicted value from the regression model needs to be transformed back into a predicted Y by applying the **inverse** of the link function. 
+
+Link functions typically transform the discontinuous scale of a categorical response variable (e.g., binary (yes/no) response) or count data (no negatives, often Poisson-distributed)
+
+**Common Link Functions**  
+**identity link** is used to model the mean value of the reponse, Y, and it what we implicitly use in standard linear models (i.e., simple, or general, linear regression modeling is a particular case of generalized linear modeling)  
+
+**log link** is used to model log(lambda), or the log of the mean value of Y - typically used for modeling count data (**"Poisson" or "log-linear" regression**)  
+
+**logit link** is log(pi/(1-pi)), used for modeling binary data (**logistic regression**)  
+
+Maximum likelihood is an **iterative** process  
+
+GLM evaluates a linear predictor for each value of the response variable given a particular set of parameter values (e.g., beta coefficients), then back-transforms the predicted value into the scale of the Y variable using the inverse of the link function  
+
+These predicted values are compared with the observed values of Y  
+
+The parameters (beta coefficients) are then adjusted, and the model is refitted (on the transformed scale) repeatedly, an iterative procedure, until the fit stops improving  
+
+The **data are taken as a given**, and we are trying to find **the most likely parameter values** and model to fit those data  
+
+We judge the fit of th particular model on the basis of how likely the data would be if the model were correct.  
+
+# Logistic Regression 
+
+**Used when out response variable is binary** 
+
+Interested in modeling pi, which is the *probability* that Y equals 1 for a given value of X (rather than the mean value of Y for that given value of X)  
+
+The errors or residuals from such a model are not normally distributed, but rather have a binomial distribution  
+
+We actually use as our response variable the **log of the odds ratio** between out two possible outcomes, i.e., the ratio of the probabilities that Y = 1 versus that Y = 0 for a given value of X. This ratio is known as the **logit**  
+The logit transformation is the link function connecting Y to our predictors. The logit is useful as is converts probabilities, which lie in the range 0 to 1  
+  
+### Example 
+
+Loading in data set from Kaggle on passengers on the Titanic 
+
+```{r message=FALSE}
+library(readr)
+f <- "https://raw.githubusercontent.com/difiore/ada-2024-datasets/main/titanic_train.csv"
+d <- read_csv(f, col_names = TRUE)
+```
+
+The response variable, **Survived**, is a binary variable, scored as 1/0  
+
+Remove the variables ***PassengerID**, **Ticket**, **Cabin**
+
+```{r}
+library(tidyverse)
+
+d <- d %>% select(Survived, Pclass, Name, Sex, Age, SibSp, Parch, Fare, Embarked)
+```
+
+Convert **Sex**, **Embarked**, and **Pclass** to being factors
+
+```{r}
+d$Sex <- as.factor(d$Sex)
+d$Embarked <- as.factor(d$Embarked)
+d$Pclass <- as.factor(d$Pclass)
+```
+
+Exploratory plots? Survival in relation to **Age**, **Sex**, **Pclass** 
+
+Age:
+
+```{r warning=FALSE}
+p1 <- ggplot(data = d, aes(x = Age, y = Survived)) + 
+  geom_violin() +
+  geom_jitter(alpha = 0.05, width = 0.5) +
+  theme_classic()
+p1
+```
+
+Sex:
+
+```{r}
+p2 <- ggplot(data = d, aes(x = Sex, y = Survived)) + 
+  geom_violin() +
+  geom_jitter(alpha = 0.05, width = 0.5) +
+  theme_classic()
+p2
+```
+
+Pclass:
+
+```{r}
+p3 <- ggplot(data = d, aes(x = Pclass, y = Survived)) + 
+  geom_violin() +
+  geom_jitter(alpha = 0.05, width = 0.5) +
+  theme_classic()
+p3
+```
+
+Use logistic regression to look at how the odds of survival is influenced by sex:
+
+```{r}
+gm1 <- glm(formula = Survived ~ Sex, family = "binomial", data = d)
+summary(gm1)
+```
+
+Equation that results from the model:
+
+**log(odds of survival) = 1.0566 - 2.5137 * (0 if female, 1 if male)**
+
+How does this translate to ODDS scale? Need to calculate log(odds of survival) for each sex and apply inverse of log() function (exp())
+
+**exp(log(odds of survival)) = exp(1.0566 - 2.5137 * (0 if female, 1 if male ))**
+
+Trying this out in code:
+
+```{r}
+library(broom)
+tidy(gm1) # estimate is on logOR scale
+confint(gm1) # confidence intervals on logOR scale
+# to get confint on OR scale, need to exp() lower and upper bounds
+
+coefs <- tidy(gm1) %>% select(estimate)
+logOR_female_survival <- coefs$estimate[1] + coefs$estimate[2] * 0
+logOR_male_survival <- coefs$estimate[1] + coefs$estimate[2] * 1
+OR_female_survival <- exp(logOR_female_survival)
+OR_male_survival <- exp(logOR_male_survival)
+
+OR_female_survival
+OR_male_survival
+```
+
+Whats the expected PROBABILITY of survival if female versus male?
+
+```{r}
+# odds = survival/non-survival
+# x (prob. of survival) = odds/(1 + odds)
+
+(PR_female_survival <- OR_female_survival/(1 + OR_female_survival))
+(PR_male_survival <- OR_male_survival/(1 + OR_male_survival))
+```
+
+Nice plot:
+
+```{r}
+library(effects)
+plot(allEffects(gm1)) # plots probability to survival, not odds
+```
+
+Using predict function:
+
+```{r}
+x <- data.frame(Sex = c("female", "male"))
+logOR <- predict(gm1, newdata = x)
+OR <- exp(logOR)
+y <- predict(gm1, newdata = x, type = "response") # same as shown in allEffects plot...on scale of OR, not logOR 
+```
+
+### Example
+
+```{r}
+m <- glm(Survived ~ Age, data = d, family = "binomial")
+summary(m)
+```
+
+Interpretation:
+
+```{r}
+confint(m)
+(results <- tidy(m))
+results$wald <- results$estimate/results$std.error
+results$p <- 2 * (1 - pnorm(abs(results$wald)))
+# 2 tailed p value associated with the Wald statistic
+results
+```
+
+### Challenges 
+
+How is survival related to passenger class? What is the equation that results from the model? Is survival significantly associated with passenger class? 
+
+```{r}
+m_pclass <- glm(Survived ~ Pclass, data = d, family = "binomial")
+summary(m_pclass)
+```
+
+What is the predicted odds of survival for a traveler in first class? What is the estimated probability of survival for a first class passenger?
+
+```{r}
+# equation: log(odds of survival) = 1.44679 - 0.85011 * (0 if first, 2 if second, 3 if third class)
+
+x <- tibble(Pclass = factor(c(1,2,3)))
+y <- predict(m_pclass, newdata = x, type = "response")
+```
+
+
+How is survival related to both sex and passenger class? 
+
+What is the equation that results from the model? What is the predicted odds of survival for a second class woman traveler? What is the estimated probability of a survival for a male in third class?
+
+```{r}
+m_class_sex <- glm(Survived ~ Sex + Pclass, data = d, family = "binomial")
+summary(m_class_sex)
+```
+2.2971 = log odds of survival for female first class passenger 
+2.2971 - 2.6419 * 1 = log odds of survival for a male first class passenger
+2.2971 + 0.8380 = log odds of survival for female second class passenger - need to exponentiate to get odds of survival
+
+**Deviance rather than variance:**
+
+The measure of discrepancy used in a GLM to assess the goodness of fit of the model to the data is called the **deviance**, which is an analog of variance in a general linear model 
+
+Deviance is defined as 2 * (the log-likelihood of a "fully saturated" model minus the log likelihood of the proposed model). The former is a model that fits the data perfectly. It has no parameters, its likelihood is 1, and its log-likelihood is thus 0. 
+
+Deviance, functionally, can be calculated as -2 * log-likelihood of the proposed model.
+
+For GLMs, we can use a likelihood ratio test (LRT, which is similar to an F ratio test) to compare the ratio of likelihoods (as opposed to the ratio of explained variances) of a model and a nested model. 
+
+```{r}
+#Comparing model with sex & passenger class with model with only Pclass
+proposed_model <- glm(Survived ~ Sex + Pclass, data = d, family = "binomial")
+reduced_model <- glm(Survived ~ Pclass, data = d, family = "binomial")
+library(lmtest)
+lrtest(reduced_model, proposed_model)
+```
+
+Compares ratios of deviances (related to log-likelihoods)
+
+Adding interaction term:
+
+```{r}
+inter <- glm(Survived ~ Pclass + Sex + Sex:Pclass, data = d, family = "binomial")
+lrtest(proposed_model, inter)
+```
+
+We can also perform a likelihood ratop test by hand by taking the difference between the deviances of the two models to calculate the Chi-square statistic (often called a G Square statistic) and then calculating the associated p-value.
+
+# Log-Linear or Poisson Regression 
+
+Sometimes, we want to model a response variable that is in the form of count data (e.g., species richness on a n island in terms of distance from the mainland, number of plants of a particular species found in a sampling plot in relation to altitude). Many discrete response variables have counts as possible outcomes. 
+
+**Binomial counts** are the number of successes...
+
+### Example
+
+Fake data set on reproductive success
+
+```{r}
+f <- "https://raw.githubusercontent.com/difiore/ada-2024-datasets/main/woollydata.csv"
+d <- read_csv(f, col_names = TRUE)
+```
+
+Mating success in relation to age:
+
+```{r}
+(p <- ggplot(data = d, aes(x = age, y = success)) +
+  geom_point()) +
+  xlab("Age") + ylab("Mating Success") +
+  theme_classic()
+```
+
+GLM of relationship:
+
+```{r}
+m <- glm(success ~ age, data = d, family = "poisson")
+summary(m)
+```
+
+Age does predict mating success 
+For a one unit increase in age, log(mating success) increases 0.05920
+
+```{r}
+null <- glm(data = d, success ~ 1, family = "poisson")
+lrtest(null, m)
+```
+
+Adding age into model does improve the fit 
+
+Calculating by hand:
+
+```{r}
+g2 <- null$deviance - m$deviance # G Square statistic
+p <- 1 - pchisq(g2, df = 1)
+```
+
+
