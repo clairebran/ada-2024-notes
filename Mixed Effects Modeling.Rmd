@@ -104,3 +104,102 @@ m <- lmer(data = d, duration ~ reprocondition + parity + (1 + reprocondition|sub
 summary(m)
 ```
 
+### Inference Using AIC
+
+Installing necessary package:
+
+```{r}
+package_url <- "https://cran.r-project.org/src/contrib/Archive/AICcmodavg/AICcmodavg_2.3-1.tar.gz"
+# install.packages(package_url, repos = NULL, type = "source")
+```
+
+Calculating AICc
+
+```{r}
+# random factors only
+null <- lmer(data = d, duration ~ (1 + reprocondition | subject) + (1 + parity |
+    subject), REML = FALSE)
+
+# full model with both fixed effects
+full <- lmer(data = d, duration ~ reprocondition + parity + (1 + reprocondition |
+    subject) + (1 + parity | subject), REML = FALSE)
+
+# model without reproductive condition as a fixed effect
+minusRC <- lmer(data = d, duration ~ parity + (1 + reprocondition | subject) + (1 +
+    parity | subject), REML = FALSE)
+
+# model without parity as a fixed effect
+minusP <- lmer(data = d, duration ~ reprocondition + (1 + reprocondition | subject) +
+    (1 + parity | subject), REML = FALSE)
+
+# p value for reproductive condition as a fixed effect
+anova(minusRC, full, test = "Chisq")
+```
+
+AIC table:
+
+```{r}
+(aic_table <- aictab(list(full, minusRC, minusP, null), modnames = c("full", "minusRC", "minusP", "null"), sort = TRUE))
+```
+
+## Challenge: Combining generalized and mixed effects models = GLMM
+
+Reading in data set:
+
+```{r message=FALSE}
+f <- "https://raw.githubusercontent.com/difiore/ada-2024-datasets/main/Bowden-ParryOtterdata.csv"
+d <- read_csv(f, col_names = TRUE)
+```
+
+Create a new random variable that joins the variables "zoo" and "trialorder" 
+
+```{r}
+d <- d %>% mutate(
+  trial = paste0(zoo, trialorder))
+```
+
+Create a new random variable that is simply an observation number or ID
+
+```{r}
+d <- rowid_to_column(d, var = "obs")
+```
+
+Rename "TotalSharebothharasspro" as "Shared"
+
+```{r}
+d <- d %>% rename(Shared = TotalSharebothharasspro)
+```
+
+Rename "begreceived" as "BegReceived"
+
+```{r}
+d <- d %>% rename(BegReceived = begreceived)
+```
+
+Plot total food transferred (Shared) in realtion to begging received (BegReceived)
+
+```{r}
+ggplot(d, aes(x = BegReceived, y = Shared)) +
+  geom_point() +
+  xlab("Begging Received (total number)") +
+  ylab("Food Transfers (total number") +
+  theme_classic() +
+  theme(text = element_text(size = 12))
+```
+
+**Model 1:** Does the amount of begging received influence sharing frequency?
+
+```{r}
+m <- glmer(Shared ~
+             BegReceived +
+             offset(log(trialduration/60)) +
+             (1 | ID) +
+             (1 | trial) +
+             (1 | obs),
+           data = d,
+           family = poisson(link = log))
+summary(m)
+```
+
+P-value is tiny so reject null hypothesis that begging received has no influence on food sharing. 
+
