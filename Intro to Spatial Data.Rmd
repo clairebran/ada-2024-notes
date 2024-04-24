@@ -7,7 +7,7 @@ output:
     highlight: tango
 ---
 
-Loading required packages:
+**Loading required packages:**
 
 ```{r message=FALSE}
 easypackages::libraries("tidyverse", 
@@ -17,14 +17,16 @@ easypackages::libraries("tidyverse",
                         "adehabitatHR")
 ```
 
-Loading data set:
+**Loading data set:**
 
 ```{r message=FALSE}
 f <- "https://raw.githubusercontent.com/difiore/ada-2024-datasets/main/spider_monkeys.csv"
 d <- read_csv(f, col_names = TRUE)
 ```
 
-Converting data frame to spatial data object:
+## Projections and Coordinate Reference Systems
+
+**Converting data frame to spatial data object:**
 
 ```{r}
 # Project and plot focal points
@@ -40,5 +42,141 @@ crs_target <- "+proj=utm +zone=18 + south +datum=WGS84 +units=m"
 d_sp <- spTransform(d, CRS(crs_target))
 d_sf <- st_as_sf(d_sp, CRS("+proj=utm +zone=18 + south +datum=WGS84 +units=m"))
 plot(d_sp, pch = 19, main = "Focal Points")
+```
+
+**Loading in two other data sets: tree coordinates, and single point location for the Tiputini Biodiversity Station**
+
+```{r message=FALSE}
+# Point data for trees through 2012
+f <- "https://raw.githubusercontent.com/difiore/ada-2024-datasets/main/trees_2012.csv"
+trees <- read_csv(f, col_names = TRUE)
+
+# Point data for TBS field station
+f <- "https://raw.githubusercontent.com/difiore/ada-2024-datasets/main/TBS_coordinates.csv"
+station <- read_csv(f, col_names = TRUE)
+```
+
+**Converting data sets to spatial objects:**
+
+```{r}
+coordinates(trees) <- c("FINAL_LON", "FINAL_LAT")
+proj4string(trees) <- CRS("+proj=longlat +datum=WGS84")
+trees_sp <- spTransform(trees, CRS("+proj=utm +zone=18 + south +datum=WGS84 +units=m"))
+trees_sf <- st_as_sf(trees_sp, CRS("+proj=utm +zone=18 + south +datum=WGS84 +units=m"))
+plot(trees_sp, pch = 19, main = "Feeding Trees")
+
+coordinates(station) <- c("Longitude", "Latitude")
+proj4string(station) <- CRS("+proj=longlat +datum=WGS84")
+station_sp <- spTransform(station, CRS("+proj=utm +zone=18 + south +datum=WGS84 +units=m"))
+station_sf <- st_as_sf(station_sp, CRS("+proj=utm +zone=18 + south +datum=WGS84 +units=m"))
+```
+
+**Point location of mineral lick used by primate group:**
+
+```{r message=FALSE}
+# Point data for the mineral lick
+f <- "https://raw.githubusercontent.com/difiore/ada-2024-datasets/main/mineral_lick.csv"
+mineral_lick <- read_csv(f, col_names = TRUE)
+
+mineral_lick_sf <- st_as_sf(mineral_lick, coords = c("x_proj", "y_proj"), crs = 32718)
+mineral_lick_sp <- as(mineral_lick_sf, "Spatial")
+```
+
+**Shapefile for Ecuador:**
+
+```{r message=FALSE}
+# Load shapefile, convert to sp/sf
+f <- "/Users/clairebrandes/Desktop/UT/Applied Data Analysis/Repos/ada-2024-notes/Spatial Data/ec_provinces.shp"
+ecuador <- st_read(f)
+
+ecuador_sp <- as(ecuador, "Spatial")
+proj4string(ecuador_sp) <- CRS("+proj=utm +zone=18 + south +datum=WGS84 +units=m")
+ecuador_sf <- st_as_sf(ecuador_sp, CRS("+proj=utm +zone=18 + south +datum=WGS84 +units=m"))
+
+# Load and project shapefile for the TBS trail system, convert to sp/sf
+f <- "/Users/clairebrandes/Desktop/UT/Applied Data Analysis/Repos/ada-2024-notes/Spatial Data/trails.shp"
+trails <- st_read(f)
+
+trails_sp <- as(trails, "Spatial")
+proj4string(trails_sp) <- CRS("+proj=longlat +datum=WGS84")
+trails_sp <- spTransform(trails_sp, CRS("+proj=utm +zone=18 + south +datum=WGS84 +units=m"))
+trails_sf <- st_as_sf(trails_sp, CRS("+proj=utm +zone=18 + south +datum=WGS84 +units=m"))
+
+# Load and project shapefile for the Tiputini River, convert to sp/sf
+f <- "/Users/clairebrandes/Desktop/UT/Applied Data Analysis/Repos/ada-2024-notes/Spatial Data/rio tiputini.shp"
+rio <- st_read(f)
+
+rio_sp <- as(rio, "Spatial")
+proj4string(rio_sp) <- CRS("+proj=longlat +datum=WGS84")
+rio_sp <- spTransform(rio_sp, CRS("+proj=utm +zone=18 + south +datum=WGS84 +units=m"))
+rio_sf <- st_as_sf(rio_sp, CRS("+proj=utm +zone=18 + south +datum=WGS84 +units=m"))
+```
+
+## Simple Plots
+
+```{r}
+# plot TBS point over Ecuador Shapefile and TBS point over trail and river
+# shapefiles using ggplot() and sf objects
+
+p1 <- ggplot() + geom_sf(data = ecuador_sf) + geom_sf(data = rio_sf, color = "blue") +
+    geom_sf(data = station_sf, color = "red") + xlab("Longitude") + ylab("Latitude") +
+    ggtitle("TBS, Ecuador") + coord_sf(crs = 32718)
+
+p2 <- ggplot() + geom_sf(data = trails_sf) + geom_sf(data = rio_sf, color = "blue") +
+    geom_sf(data = station_sf, color = "red") + xlab("Longitude") + ylab("Latitude") +
+    ggtitle("TBS trail system \n and Tiputini river") + coord_sf(crs = 32718)
+
+cowplot::plot_grid(p1, p2, ncol = 2)
+```
+
+## Generating Home Ranges
+
+**Calculating home range area (MCP method):**
+
+MCP approach *was* a standard method for calculating home range in the 90s 
+
+```{r}
+polygon <- mcp(d_sp, percent = 100)  #set to 100% to include all points
+
+plot(polygon, main = "Home Range, MCP method, 100%")
+```
+
+**Same plot with ggplot:**
+
+```{r}
+ggplot(st_as_sf(polygon)) + geom_sf(alpha = 0.5)
+```
+
+Excluding some points that may be outliers and not accurately represent the group’s home range. Simply need to select the percentage of points to include (in this case, 95% of points):
+
+```{r}
+polygon95 <- mcp(d_sp, percent = 95)
+
+plot(polygon95, main = "Home Range, MCP method, 95%")
+```
+
+**As ggplot:**
+
+```{r}
+ggplot(st_as_sf(polygon95)) + geom_sf(alpha = 0.5)
+```
+
+**Utilization distribution model:** 
+
+```{r}
+# kernelUD method
+hr_kernel <- kernelUD(d_sp)
+
+hr_kernel95 <- getverticeshr(hr_kernel, percent = 95)
+plot(hr_kernel95, main = "Home Range, kernelUD method, 95%")
+```
+
+**Plotted with ggplot, including data points:**
+
+Need to specify aesthetics associated with data points here
+
+```{r}
+ggplot(st_as_sf(hr_kernel95)) + geom_sf(alpha = 0.5) + geom_sf(data = st_as_sf(d_sp),
+    aes(geometry = geometry), alpha = 0.3)
 ```
 
