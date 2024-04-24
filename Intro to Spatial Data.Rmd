@@ -1,0 +1,44 @@
+---
+title: "Intro to Spatial Data"
+author: "Claire Brandes"
+date: "April 17, 2024"
+output: 
+  html_document: 
+    highlight: tango
+---
+
+Loading required packages:
+
+```{r message=FALSE}
+easypackages::libraries("tidyverse", 
+                        "sp", 
+                        "sf", 
+                        "cowplot", 
+                        "adehabitatHR")
+```
+
+Loading data set:
+
+```{r message=FALSE}
+f <- "https://raw.githubusercontent.com/difiore/ada-2024-datasets/main/spider_monkeys.csv"
+d <- read_csv(f, col_names = TRUE)
+```
+
+Converting data frame to spatial data object:
+
+```{r}
+# Project and plot focal points
+crs_original <- "+proj=longlat +datum=WGS84" 
+
+# x, y values represent the longitude and latitude, respectively and match the names of the fields in our original data table
+coordinates(d) <- c("Longitude", "Latitude")  
+
+# Note that the data need to have an initial projection assigned in order to be transformed
+# Here we know that our initial coordinates are in latitude-longitude
+proj4string(d) <- CRS(crs_original)  
+crs_target <- "+proj=utm +zone=18 + south +datum=WGS84 +units=m"
+d_sp <- spTransform(d, CRS(crs_target))
+d_sf <- st_as_sf(d_sp, CRS("+proj=utm +zone=18 + south +datum=WGS84 +units=m"))
+plot(d_sp, pch = 19, main = "Focal Points")
+```
+

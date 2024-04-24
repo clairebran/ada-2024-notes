@@ -1,0 +1,22 @@
+---
+title: "Intro to Spatial Data"
+author: "Claire Brandes"
+date: "April 17, 2024"
+output: 
+  html_document: 
+    highlight: tango
+---
+
+Loading required packages:
+
+```{r message=FALSE}
+easypackages::libraries("tidyverse", "sp", "sf", "cowplot", "adehabitatHR")
+```
+
+Loading data set:
+
+```{r message=FALSE}
+f <- "https://raw.githubusercontent.com/difiore/ada-2024-datasets/main/spider_monkeys.csv"
+d <- read_csv(f, col_names = TRUE)
+```
+
